@@ -10,7 +10,10 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.Email;
 import java.util.UUID;
+
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UuidGenerator;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "users")
@@ -19,6 +22,7 @@ public class User extends BaseEntity {
     @Id
     @GeneratedValue
     @UuidGenerator
+    @JdbcTypeCode(SqlTypes.UUID)
     @Column(name = "id", columnDefinition = "uuid")
     private UUID id;
 
@@ -77,5 +81,13 @@ public class User extends BaseEntity {
 
     public void changePassword(String password) {
         this.password = password;
+    }
+
+    public static User createLocalUser(String email, String name, String password) {
+        return new User(email, name, password, AuthProvider.LOCAL);
+    }
+
+    public static User createOAuthUser(String email, String name, String password) {
+        return new User(email, name, password, AuthProvider.GOOGLE);
     }
 }

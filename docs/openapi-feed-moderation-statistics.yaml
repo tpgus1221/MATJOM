@@ -1,0 +1,394 @@
+openapi: 3.0.3
+info:
+  title: MatJom Feed·Moderation·Statistics API
+  version: 1.0.0
+  description: |
+    리뷰/좋아요/신고/통계 기능을 담당하는 MatJom 백엔드 API 명세입니다.
+    모든 엔드포인트는 JWT Bearer 토큰을 필요로 합니다.
+servers:
+  - url: https://api.matjom.com
+    description: Production
+  - url: http://localhost:8080
+    description: Local 개발용
+security:
+  - bearerAuth: []
+paths:
+  /api/v1/reviews:
+    post:
+      summary: 리뷰 작성
+      tags: [Reviews]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewCreateRequest'
+      responses:
+        '200':
+          description: 작성 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    get:
+      summary: 장소별 리뷰 조회
+      tags: [Reviews]
+      parameters:
+        - in: query
+          name: placeId
+          schema:
+            type: integer
+            format: int64
+          required: true
+          description: 조회할 장소 ID
+      responses:
+        '200':
+          description: 리뷰 리스트
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ReviewResponse'
+  /api/v1/reviews/{reviewId}:
+    put:
+      summary: 리뷰 수정
+      tags: [Reviews]
+      parameters:
+        - $ref: '#/components/parameters/ReviewIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewUpdateRequest'
+      responses:
+        '200':
+          description: 수정 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      summary: 리뷰 삭제 (소프트 삭제)
+      tags: [Reviews]
+      parameters:
+        - $ref: '#/components/parameters/ReviewIdPath'
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessVoid'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/reviews/my:
+    get:
+      summary: 내가 작성한 리뷰 목록
+      tags: [Reviews]
+      responses:
+        '200':
+          description: 리뷰 리스트
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ReviewResponse'
+  /api/v1/likes:
+    post:
+      summary: 좋아요 등록
+      tags: [Likes]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LikeCreateRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessVoid'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/v1/likes/{likeId}:
+    delete:
+      summary: 좋아요 취소
+      tags: [Likes]
+      parameters:
+        - $ref: '#/components/parameters/LikeIdPath'
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessVoid'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      summary: 좋아요 재활성화
+      tags: [Likes]
+      parameters:
+        - $ref: '#/components/parameters/LikeIdPath'
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessVoid'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/reviews/{reviewId}/reports:
+    post:
+      summary: 리뷰 신고 접수
+      tags: [Moderation]
+      parameters:
+        - $ref: '#/components/parameters/ReviewIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportReviewRequest'
+      responses:
+        '200':
+          description: 신고 결과
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseSuccess'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/places/{placeId}/stats:
+    get:
+      summary: 장소 통계 조회
+      tags: [Statistics]
+      parameters:
+        - $ref: '#/components/parameters/PlaceIdPath'
+      responses:
+        '200':
+          description: 통계 스냅샷
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseStats'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    ReviewIdPath:
+      name: reviewId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: 대상 리뷰 UUID
+    LikeIdPath:
+      name: likeId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: 대상 좋아요 UUID
+    PlaceIdPath:
+      name: placeId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+      description: 장소 ID
+  responses:
+    BadRequest:
+      description: 잘못된 요청 (검증 실패)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: 권한 없음
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: 대상 리소스를 찾을 수 없음
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: 도메인 제약 조건 위반 (이미 작성/신고 등)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    SuccessVoid:
+      description: 동작 성공 (데이터 없음)
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: true
+  schemas:
+    ReviewCreateRequest:
+      type: object
+      properties:
+        placeId:
+          type: integer
+          format: int64
+          example: 1
+        visitId:
+          type: integer
+          format: int64
+          example: 10
+        text:
+          type: string
+          maxLength: 140
+          example: "맛있어요"
+      required: [placeId, visitId, text]
+    ReviewUpdateRequest:
+      type: object
+      properties:
+        text:
+          type: string
+          maxLength: 140
+          example: "친절했어요"
+      required: [text]
+    ReviewResponse:
+      type: object
+      properties:
+        reviewId:
+          type: string
+          format: uuid
+        reviewerName:
+          type: string
+        placeName:
+          type: string
+        text:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    LikeCreateRequest:
+      type: object
+      properties:
+        placeId:
+          type: integer
+          format: int64
+          example: 2
+        visitId:
+          type: integer
+          format: int64
+          nullable: true
+          description: ARRIVED 방문이 명확할 때 명시, 생략 시 서버가 최신 ARRIVED 방문을 자동 선택
+      required: [placeId]
+    ReportReviewRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          enum: [SPAM, INAPPROPRIATE, FAKE, OFFENSIVE, OTHER]
+        description:
+          type: string
+          nullable: true
+      required: [reason]
+    ApiResponseSuccess:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          nullable: true
+          type: object
+          description: 항상 null
+          example: null
+        error:
+          nullable: true
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+          example: "2025-10-01T12:45:21.123Z"
+      required: [success, data, timestamp]
+    ApiResponseStats:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/StatsData'
+        timestamp:
+          type: string
+          format: date-time
+          example: "2025-09-30T08:30:00Z"
+      required: [success, data, timestamp]
+    StatsData:
+      type: object
+      properties:
+        placeName:
+          type: string
+        totalVisitors:
+          type: integer
+          format: int64
+        totalLikes:
+          type: integer
+          format: int64
+        hourlyArrivals:
+          type: array
+          items:
+            $ref: '#/components/schemas/HourlyArrival'
+      required: [placeName, totalVisitors, totalLikes, hourlyArrivals]
+    HourlyArrival:
+      type: object
+      properties:
+        hour:
+          type: integer
+          format: int32
+          description: 시작 시각(24시간 기준, 11~20)
+        averageCount:
+          type: integer
+          format: int64
+          description: 최근 14일 평균 도착 인원
+      required: [hour, averageCount]
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        errorCode:
+          type: string
+          example: REVIEW_NOT_ALLOWED
+        message:
+          type: string
+          example: 도착 확인 후 작성 가능합니다

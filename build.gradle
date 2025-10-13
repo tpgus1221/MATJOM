@@ -6,7 +6,7 @@ plugins {
 
 group = 'com.matjom'
 version = '0.0.1-SNAPSHOT'
-description = 'MATJOM - 오늘은 또 뭐 먹지...'
+description = 'MATJOM - 맛집 탐색 서비스'
 
 java {
     toolchain {
@@ -26,59 +26,61 @@ repositories {
 
 dependencies {
     // ======= Spring 기본 스타터 =======
-    implementation 'org.springframework.boot:spring-boot-starter-web'          // REST API 개발
+    implementation 'org.springframework.boot:spring-boot-starter-web'          // REST API용 웹 스타터
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'     // JPA/Hibernate ORM
-    implementation 'org.springframework.boot:spring-boot-starter-security'     // 보안(JWT, OAuth 연동)
-    implementation 'org.springframework.boot:spring-boot-starter-validation'   // DTO 입력값 검증(@NotBlank 등)
-    implementation 'org.springframework.boot:spring-boot-starter-data-redis'   // Redis (토큰 저장, 캐싱)
+    implementation 'org.springframework.boot:spring-boot-starter-security'     // 기본 보안, JWT/OAuth 필수 구성
+    implementation 'org.springframework.boot:spring-boot-starter-validation'   // DTO 검증(@NotBlank 등)
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'   // Redis (토큰/세션 캐싱)
     implementation 'org.springframework.boot:spring-boot-starter-actuator'     // 모니터링/헬스체크
 
-    // ======= DB 드라이버 =======
-    runtimeOnly 'org.postgresql:postgresql'   // 운영 DB (Postgresql)
-    runtimeOnly 'com.h2database:h2'           // 로컬 개발용 인메모리 DB
+    // ======= 데이터베이스 =======
+    runtimeOnly 'org.postgresql:postgresql'   // 운영 DB(PostgreSQL)
+    runtimeOnly 'com.h2database:h2'           // 로컬 및 테스트용 인메모리 DB
 
-    //
     implementation 'org.hibernate.orm:hibernate-spatial'
     implementation 'org.locationtech.jts:jts-core:1.19.0'
 
     // ======= 개발 편의 =======
-    compileOnly 'org.projectlombok:lombok'                       // Getter/Setter/Builder 자동 생성
+    compileOnly 'org.projectlombok:lombok'                       // Lombok (Getter/Builder 등)
     annotationProcessor 'org.projectlombok:lombok'
-    developmentOnly 'org.springframework.boot:spring-boot-devtools' // 코드 변경 시 자동 리스타트
+    developmentOnly 'org.springframework.boot:spring-boot-devtools' // 핫 리로드용 개발 도구
 
     // ======= JWT =======
     implementation 'io.jsonwebtoken:jjwt-api:0.13.0'      // JWT 생성/검증 API
-    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.13.0'        // JWT 내부 구현체
-    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.13.0'     // JWT 파싱/직렬화(Jackson 연동)
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.13.0'        // JWT 핵심 구현체
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.13.0'     // JWT 직렬화/역직렬화 (Jackson)
 
-    // ======= DB 마이그레이션 (Flyway) =======
-    //implementation 'org.flywaydb:flyway-core'    // DB 버전 관리
+    // ======= DB 마이그레이션(Flyway) =======
+    //implementation 'org.flywaydb:flyway-core'    // DB 스키마 버전 관리
 
-    // ======= API 문서화 (Swagger/OpenAPI) =======
-    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.5.0' // Swagger UI 제공
+    // ======= API 문서(Swagger/OpenAPI) =======
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.7.0' // Swagger UI 제공
 
-    // ======= 로깅 (Logstash Encoder) =======
-    implementation 'net.logstash.logback:logstash-logback-encoder:7.4' // JSON 로그 포맷 (ELK 연동)
+    // ======= 로그(Logstash Encoder) =======
+    implementation 'net.logstash.logback:logstash-logback-encoder:7.4' // JSON 로그(ELK 연동)
 
     // ====== 모니터링/메트릭 ======
-    implementation 'io.micrometer:micrometer-core'                  //애플리케이션에서 메트릭 수집
-    implementation 'io.micrometer:micrometer-registry-prometheus'   //Prometheus에 메트릭을 노출하기 위한 어댑터
+    implementation 'io.micrometer:micrometer-core'                  // 메트릭 수집
+    implementation 'io.micrometer:micrometer-registry-prometheus'   // Prometheus 연동
 
     // ======= 테스트 =======
     testImplementation 'org.springframework.boot:spring-boot-starter-test' // JUnit5 + MockMvc
-    testImplementation 'org.springframework.security:spring-security-test' // 인증/인가 테스트
-    testImplementation 'org.mockito:mockito-core'                          // Mock 객체 생성
-    testImplementation 'org.assertj:assertj-core:3.26.0'                   // 가독성 좋은 검증
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'            // JUnit 플랫폼 런처
+    testImplementation 'org.springframework.security:spring-security-test' // 인증/인가 테스트 유틸
+    testImplementation 'org.mockito:mockito-core'                          // Mockito 모킹
+    testImplementation 'org.assertj:assertj-core:3.26.0'                   // AssertJ 체이닝 검증
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'            // JUnit 플랫폼 실행기
     testImplementation 'org.testcontainers:junit-jupiter:1.20.0'
     testImplementation 'org.testcontainers:postgresql:1.20.0'
+
+    // ====== Argon2 비밀번호 해싱 ======
+    implementation 'org.bouncycastle:bcprov-jdk18on:1.78.1'
 }
 
 tasks.named('test') {
     useJUnitPlatform()
 }
 
-// ======= UTF-8 인코딩 강제 =======
+// ======= UTF-8 컴파일 옵션 =======
 tasks.withType(JavaCompile).configureEach {
-    options.encoding = 'UTF-8' // 소스 코드 인코딩을 UTF-8로 고정
+    options.encoding = 'UTF-8' // 자바 소스 컴파일을 UTF-8로 고정
 }

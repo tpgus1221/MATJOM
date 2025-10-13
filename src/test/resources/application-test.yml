@@ -22,3 +22,6 @@ spring:
 logging:
   level:
     root: WARN
+
+jwt:
+  secret: test-secret-test-secret-test-secret-32

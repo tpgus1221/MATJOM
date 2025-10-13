@@ -23,6 +23,7 @@ spring:
     init:
       mode: always
       schema-locations: classpath:schema-postgres.sql
+      data-locations: classpath:sql/postgres-test-seed.sql
   jmx:
     enabled: false
 #    enabled: true                # Flyway 활성화
@@ -53,3 +54,9 @@ management:
   metrics:
     tags:
       application: ${spring.application.name}
+
+oauth:
+  google:
+    token-info-endpoint: https://oauth2.googleapis.com/tokeninfo
+    allowed-client-ids:
+      - 407408718192.apps.googleusercontent.com
