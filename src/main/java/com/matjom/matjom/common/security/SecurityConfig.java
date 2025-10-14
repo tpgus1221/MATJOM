@@ -1,8 +1,10 @@
 package com.matjom.matjom.common.security;
 
+import com.matjom.matjom.common.ratelimit.RateLimitFilter;
 import com.matjom.matjom.common.security.jwt.JwtAuthenticationFilter;
 import java.util.Arrays;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.env.Environment;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
@@ -24,6 +26,7 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final Environment env;
+    private final RateLimitFilter rateLimitFilter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -46,6 +49,7 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+				.addFilterBefore(rateLimitFilter, JwtAuthenticationFilter.class)
                 .cors(Customizer.withDefaults());
 
         if (Arrays.asList(env.getActiveProfiles()).contains("prod")) {

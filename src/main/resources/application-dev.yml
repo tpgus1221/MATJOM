@@ -1,6 +1,5 @@
 spring:
   datasource:
-    # TODO: 개발용 DB 접속 정보 확정 시 수정
     url: jdbc:postgresql://localhost:5432/matjom_dev
     username: devuser
     password: devpass

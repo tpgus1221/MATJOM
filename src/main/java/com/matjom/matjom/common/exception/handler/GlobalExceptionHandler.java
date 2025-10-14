@@ -28,12 +28,13 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<Void>> handleValidationException(MethodArgumentNotValidException ex) {
-        String message = ex.getBindingResult()
-                .getFieldErrors()
-                .stream()
-                .findFirst()
-                .map(error -> error.getDefaultMessage() == null ? ErrorCode.INVALID_REQUEST_PARAM.getDefaultMessage() : error.getDefaultMessage())
-                .orElse(ErrorCode.INVALID_REQUEST_PARAM.getDefaultMessage());
+        String message = ErrorCode.INVALID_REQUEST_PARAM.getDefaultMessage();
+        if (!ex.getBindingResult().getFieldErrors().isEmpty()) {
+            String defaultMessage = ex.getBindingResult().getFieldErrors().get(0).getDefaultMessage();
+            if (defaultMessage != null) {
+                message = defaultMessage;
+            }
+        }
 
         log.debug("Validation failed: {}", message, ex);
         ErrorCode code = ErrorCode.INVALID_REQUEST_PARAM;

@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS places (
     addr_eupmyeondong VARCHAR(80) NOT NULL,
     addr_street VARCHAR(100) NOT NULL,
     addr_detail VARCHAR(100) NOT NULL,
-    location geometry(Point,4326),
+    location geography(Point,4326),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ,
     deleted_at TIMESTAMPTZ,
@@ -111,6 +111,23 @@ CREATE TABLE IF NOT EXISTS visit_positions (
 
 CREATE INDEX IF NOT EXISTS idx_visit_positions_visit ON visit_positions (visit_id);
 CREATE INDEX IF NOT EXISTS idx_visit_positions_visit_received ON visit_positions (visit_id, received_at);
+
+-- Visit events
+CREATE TABLE IF NOT EXISTS visit_events (
+    event_id BIGSERIAL PRIMARY KEY,
+    visit_id BIGINT NOT NULL REFERENCES visits(visit_id),
+    user_id UUID NOT NULL,
+    event_type VARCHAR(30) NOT NULL,
+    from_state VARCHAR(20) NOT NULL,
+    to_state VARCHAR(20) NOT NULL,
+    occurred_at TIMESTAMPTZ NOT NULL,
+    meta JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ,
+    deleted_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_visit_events_visit ON visit_events (visit_id, occurred_at);
 
 -- User place first arrivals
 CREATE TABLE IF NOT EXISTS user_place_first_arrivals (

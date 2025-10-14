@@ -1,0 +1,900 @@
+openapi: 3.0.3
+info:
+  title: MATJOM Lunch Recommendation API
+  version: v1
+  description: |
+    점심 추천 MVP v1 API 명세.
+    - 공통 응답은 ApiResponse 구조(success, data, error, timestamp)를 따른다.
+    - 검색 API는 커서 기반 페이지네이션과 결과 상한(500)을 지원한다.
+servers:
+  - url: https://api.example.com
+    description: Production (placeholder)
+  - url: https://staging.example.com
+    description: Staging (placeholder)
+
+paths:
+  /api/v1/places:
+    get:
+      summary: 장소 검색
+      description: |
+        사용자의 현재 위치(lat/lng)와 옵션 필터를 기준으로 가까운 장소를 검색한다.
+        - 거리 오름차순, 이후 placeId 오름차순으로 정렬된 커서 기반 페이지네이션을 지원한다.
+        - 500건을 초과하는 경우 meta.reason="too_many_results"와 안내 메시지를 반환한다.
+        - 10초 동안 최대 10회 요청 레이트리밋이 적용된다.
+      operationId: getPlaces
+      parameters:
+        - name: lat
+          in: query
+          required: true
+          schema:
+            type: number
+            format: double
+            minimum: -90
+            maximum: 90
+          description: 위도 (WGS84)
+          example: 37.5665
+        - name: lng
+          in: query
+          required: true
+          schema:
+            type: number
+            format: double
+            minimum: -180
+            maximum: 180
+          description: 경도 (WGS84)
+          example: 126.9780
+        - name: radius
+          in: query
+          required: false
+          schema:
+            type: number
+            format: double
+            minimum: 1
+            default: 300
+          description: 검색 반경(미터). 생략 시 300m.
+          example: 200
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 20
+          description: 페이지당 결과 수. 최대 500.
+          example: 20
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: '^[0-9]+(\.[0-9]+)?:[0-9]+$'
+          description: 이전 응답의 nextCursor. "{distanceMeters}:{lastPlaceId}" 포맷.
+          example: "123.45:98765"
+        - name: filters
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 200
+          description: 카테고리 등 추가 필터 문자열(추후 정의).
+      responses:
+        '200':
+          description: 검색 성공
+          headers:
+            X-RateLimit-Limit:
+              schema:
+                type: integer
+              description: 레이트리밋 허용 횟수(기본 10).
+            X-RateLimit-Remaining:
+              schema:
+                type: integer
+              description: 현재 윈도우에서 남은 호출 횟수.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePlaceSearch'
+              examples:
+                normal:
+                  summary: 커서 페이징 중간 결과
+                  value:
+                    success: true
+                    timestamp: '2025-02-27T04:10:00Z'
+                    data:
+                      places:
+                        - placeId: 101
+                          name: 매콤식당
+                          distanceMeters: 45.678
+                          latitude: 37.5661
+                          longitude: 126.9783
+                        - placeId: 123
+                          name: 순대국명가
+                          distanceMeters: 98.123
+                          latitude: 37.5658
+                          longitude: 126.9779
+                      nextCursor: '98.12300:123'
+                      meta: null
+                tooManyResults:
+                  summary: 결과 상한 초과
+                  value:
+                    success: true
+                    timestamp: '2025-02-27T04:11:00Z'
+                    data:
+                      places:
+                        - placeId: 201
+                          name: 한끼식탁
+                          distanceMeters: 12.345
+                          latitude: 37.5660
+                          longitude: 126.9781
+                        - placeId: 205
+                          name: 수제버거샵
+                          distanceMeters: 15.678
+                          latitude: 37.5655
+                          longitude: 126.9775
+                        # ... 생략(500건)
+                      nextCursor: null
+                      meta:
+                        reason: too_many_results
+                        suggest: 검색 반경을 줄이거나 필터를 추가해 주세요.
+                lowResults:
+                  summary: 결과가 20건 미만일 때 제안 제공
+                  value:
+                    success: true
+                    timestamp: '2025-02-27T04:12:00Z'
+                    data:
+                      places:
+                        - placeId: 501
+                          name: 소담분식
+                          distanceMeters: 32.1
+                          latitude: 37.5649
+                          longitude: 126.9770
+                        - placeId: 502
+                          name: 다이닝마켓
+                          distanceMeters: 44.5
+                          latitude: 37.5652
+                          longitude: 126.9768
+                      nextCursor: null
+                      meta:
+                        reason: low_results
+                        suggest: 검색 결과가 적습니다. 반경을 늘리거나 필터를 완화해 보세요.
+        '400':
+          description: 잘못된 요청 파라미터
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseError'
+              examples:
+                invalidCursor:
+                  value:
+                    success: false
+                    timestamp: '2025-02-27T04:12:00Z'
+                    error:
+                      code: INVALID_REQUEST_PARAM
+                      message: cursor 형식이 올바르지 않습니다.
+        '429':
+          description: 레이트리밋 초과
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+              description: 재시도까지 남은 초.
+            X-RateLimit-Limit:
+              schema:
+                type: integer
+            X-RateLimit-Remaining:
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseError'
+              examples:
+                rateLimited:
+                  value:
+                    success: false
+                    timestamp: '2025-02-27T04:13:00Z'
+                    error:
+                      code: SEARCH_RATE_LIMIT_EXCEEDED
+                      message: 10초 동안 10회 요청 한도를 초과했습니다.
+
+  /api/v1/recommendations/roulette:
+    post:
+      summary: 룰렛 추천
+      description: |
+        지정한 반경, 카테고리 조건에 따라 서버에서 후보를 조회하고 균등 확률로 한 곳을 추천한다.
+        - `Idempotency-Key` 헤더가 필수이며 60초 이내 동일한 요청은 저장된 응답을 재생한다.
+        - seed가 지정되면 동일한 seed로 동일 후보가 반환된다.
+      operationId: postRoulette
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            maxLength: 200
+          description: 멱등 보장을 위한 요청 키. 60초 동안 유지된다.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RouletteRequest'
+            examples:
+              default:
+                value:
+                  lat: 37.5665
+                  lng: 126.9780
+                  radius: 400
+                  limit: 120
+                  categories: ["korean", "noodles"]
+                  seed: null
+      responses:
+        '200':
+          description: 추천 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseRoulette'
+              examples:
+                success:
+                  value:
+                    success: true
+                    timestamp: '2025-02-27T05:00:00Z'
+                    data:
+                      placeId: 321
+                      name: 청계순대국
+                      distanceMeters: 83.5
+                      latitude: 37.5662
+                      longitude: 126.9784
+                      categories: ["korean"]
+                      meta:
+                        candidateCount: 48
+                        replayed: false
+        '204':
+          description: 추천 가능한 후보 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseError'
+              examples:
+                noCandidate:
+                  value:
+                    success: false
+                    timestamp: '2025-02-27T05:01:00Z'
+                    error:
+                      code: ROULETTE_NO_CANDIDATE
+                      message: 추천할 장소를 찾지 못했습니다.
+        '400':
+          description: 잘못된 요청
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseError'
+              examples:
+                missingIdempotency:
+                  value:
+                    success: false
+                    timestamp: '2025-02-27T05:02:00Z'
+                    error:
+                      code: IDEMPOTENCY_KEY_REQUIRED
+                      message: Idempotency-Key 헤더가 필요합니다.
+        '409':
+          description: 동일한 Idempotency-Key로 다른 요청이 전달됨
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseError'
+              examples:
+                conflict:
+                  value:
+                    success: false
+                    timestamp: '2025-02-27T05:03:00Z'
+                    error:
+                      code: IDEMPOTENCY_KEY_CONFLICT
+                      message: 동일한 Idempotency-Key로 이미 처리된 요청과 본문이 일치하지 않습니다.
+
+  /api/v1/sessions:
+    post:
+      summary: 방문 세션 시작
+      description: |
+        사용자의 추천 결과에 대해 방문 세션을 생성한다.
+        - `Idempotency-Key` 헤더를 필수로 요구하며 60초 동안 동일 요청을 재생한다.
+        - 동일 사용자가 ACTIVE 상태의 세션을 이미 보유한 경우 409를 반환한다.
+      operationId: startVisitSession
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            maxLength: 200
+          description: 세션 시작 요청 멱등키.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitSessionStartRequest'
+            examples:
+              default:
+                value:
+                  userId: "0f15a3c8-7a1d-4c91-8a0c-458c64be8f10"
+                  placeId: 321
+                  clientNote: "점심 추천"
+                  clientMode: NAVIGATION
+      responses:
+        '200':
+          description: 세션 시작 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseVisitSessionStart'
+              examples:
+                success:
+                  value:
+                    success: true
+                    timestamp: '2025-02-27T06:00:00Z'
+                    data:
+                      sessionId: 1001
+                      state: ACTIVE
+                      startedAt: '2025-02-27T06:00:00+09:00'
+                      expiresAt: '2025-02-27T06:30:00+09:00'
+                      replayed: false
+        '400':
+          description: 잘못된 요청 혹은 멱등키 누락
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseError'
+              examples:
+                missingIdempotency:
+                  value:
+                    success: false
+                    timestamp: '2025-02-27T06:00:05Z'
+                    error:
+                      code: IDEMPOTENCY_KEY_REQUIRED
+                      message: Idempotency-Key 헤더가 필요합니다.
+                invalidPlace:
+                  value:
+                    success: false
+                    timestamp: '2025-02-27T06:00:06Z'
+                    error:
+                      code: PLACE_NOT_FOUND
+                      message: 가게 정보를 찾을 수 없습니다.
+        '404':
+          description: 사용자 혹은 장소를 찾을 수 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseError'
+              examples:
+                userNotFound:
+                  value:
+                    success: false
+                    timestamp: '2025-02-27T06:00:07Z'
+                    error:
+                      code: USER_NOT_FOUND
+                      message: 사용자를 찾을 수 없습니다.
+        '409':
+          description: 이미 ACTIVE 세션이 존재함
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseError'
+              examples:
+                duplicateSession:
+                  value:
+                    success: false
+                    timestamp: '2025-02-27T06:00:08Z'
+                    error:
+                      code: SESSION_ALREADY_EXISTS
+                      message: 이미 진행 중인 세션이 있습니다.
+
+  /api/v1/sessions/{sessionId}/positions:
+    post:
+      summary: 방문 세션 위치 이벤트 적재
+      description: |
+        클라이언트가 업로드하는 위치 이벤트를 저장하고 지오펜스 평가를 수행한다.
+        - 정확도(accuracyMeters)가 30m를 초과하면 dwell 증가를 일시 정지하고 `accuracyPaused=true`를 반환한다.
+      operationId: recordVisitPosition
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 방문 세션 ID.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitPositionRequest'
+            examples:
+              default:
+                value:
+                  latitude: 37.5666
+                  longitude: 126.9781
+                  accuracyMeters: 5.0
+                  mode: NAVIGATION
+                  recordedAt: '2025-02-27T06:05:10+09:00'
+      responses:
+        '200':
+          description: 위치 이벤트 저장 및 평가 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseVisitPosition'
+              examples:
+                accuracyPaused:
+                  value:
+                    success: true
+                    timestamp: '2025-02-27T06:05:11Z'
+                    data:
+                      positionId: 5501
+                      sessionId: 1001
+                      state: ACTIVE
+                      recordedAt: '2025-02-27T06:05:10+09:00'
+                      dwellSeconds: 125
+                      accuracyPaused: true
+        '400':
+          description: 잘못된 요청 혹은 세션이 이미 종료됨
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseError'
+              examples:
+                inactiveSession:
+                  value:
+                    success: false
+                    timestamp: '2025-02-27T06:05:12Z'
+                    error:
+                      code: SESSION_ALREADY_INACTIVE
+                      message: 이미 종료된 세션입니다.
+        '404':
+          description: 세션을 찾을 수 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseError'
+              examples:
+                notFound:
+                  value:
+                    success: false
+                    timestamp: '2025-02-27T06:05:13Z'
+                    error:
+                      code: SESSION_NOT_FOUND
+                      message: 세션을 찾을 수 없습니다.
+
+  /api/v1/sessions/{sessionId}/arrivals:
+    post:
+      summary: 방문 세션 수동 도착 확정
+      description: |
+        운영자가 수동으로 세션을 ARRIVED 상태로 전환한다.
+        - `Idempotency-Key` 헤더가 필수이며 60초 동안 동일 요청을 재생한다.
+        - 세션 시작 10분 미만 혹은 60분 초과 시 요청이 거절된다.
+        - 장소 기준 30m 이하에서만 수동 도착이 허용된다.
+      operationId: confirmVisitArrival
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            maxLength: 200
+          description: 수동 도착 요청 멱등키.
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 방문 세션 ID.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitManualArrivalRequest'
+            examples:
+              default:
+                value:
+                  latitude: 37.5665
+                  longitude: 126.9780
+                  accuracyMeters: 8.5
+                  requestedBy: "ops-admin"
+      responses:
+        '200':
+          description: 수동 도착 확정 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseVisitManualArrival'
+              examples:
+                success:
+                  value:
+                    success: true
+                    timestamp: '2025-02-27T06:12:00Z'
+                    data:
+                      sessionId: 1001
+                      state: ARRIVED
+                      arrivedAt: '2025-02-27T06:12:00+09:00'
+                      requestedBy: "ops-admin"
+                      replayed: false
+        '400':
+          description: 시간 또는 거리 조건 위반
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseError'
+              examples:
+                timeInvalid:
+                  value:
+                    success: false
+                    timestamp: '2025-02-27T06:12:01Z'
+                    error:
+                      code: ARRIVAL_TIME_INVALID
+                      message: 수동 도착은 시작 10~60분 사이에만 가능합니다.
+                distanceExceeded:
+                  value:
+                    success: false
+                    timestamp: '2025-02-27T06:12:02Z'
+                    error:
+                      code: ARRIVAL_DISTANCE_EXCEEDED
+                      message: 수동 도착 가능 반경(30m)을 초과했습니다.
+        '404':
+          description: 세션을 찾을 수 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseError'
+              examples:
+                notFound:
+                  value:
+                    success: false
+                    timestamp: '2025-02-27T06:12:03Z'
+                    error:
+                      code: SESSION_NOT_FOUND
+                      message: 세션을 찾을 수 없습니다.
+        '409':
+          description: 세션이 이미 비활성 상태
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseError'
+              examples:
+                inactive:
+                  value:
+                    success: false
+                    timestamp: '2025-02-27T06:12:04Z'
+                    error:
+                      code: SESSION_ALREADY_INACTIVE
+                      message: 이미 종료된 세션입니다.
+
+components:
+  schemas:
+    ApiResponsePlaceSearch:
+      type: object
+      required: [success, timestamp, data]
+      properties:
+        success:
+          type: boolean
+          example: true
+        timestamp:
+          type: string
+          format: date-time
+        data:
+          $ref: '#/components/schemas/PlaceSearchResponse'
+        error:
+          nullable: true
+          type: object
+    PlaceSearchResponse:
+      type: object
+      required: [places]
+      properties:
+        places:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlaceSummary'
+        nextCursor:
+          type: string
+          nullable: true
+          description: 다음 페이지 요청 시 사용할 커서. 마지막 페이지면 null.
+        meta:
+          $ref: '#/components/schemas/PlaceSearchMeta'
+          nullable: true
+    PlaceSummary:
+      type: object
+      required: [placeId, name, distanceMeters, latitude, longitude]
+      properties:
+        placeId:
+          type: integer
+          format: int64
+        name:
+          type: string
+        distanceMeters:
+          type: number
+          format: double
+        latitude:
+          type: number
+          format: double
+          description: 장소 위도(WGS84, decimal degrees)
+        longitude:
+          type: number
+          format: double
+          description: 장소 경도(WGS84, decimal degrees)
+    PlaceSearchMeta:
+      type: object
+      required: [reason, suggest]
+      properties:
+        reason:
+          type: string
+          enum: [too_many_results, low_results]
+        suggest:
+          type: string
+    ApiResponseError:
+      type: object
+      required: [success, timestamp, error]
+      properties:
+        success:
+          type: boolean
+          example: false
+        timestamp:
+          type: string
+          format: date-time
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+    ApiResponseRoulette:
+      type: object
+      required: [success, timestamp, data]
+      properties:
+        success:
+          type: boolean
+          example: true
+        timestamp:
+          type: string
+          format: date-time
+        data:
+          $ref: '#/components/schemas/RouletteRecommendation'
+        error:
+          nullable: true
+          type: object
+    RouletteRecommendation:
+      type: object
+      required: [placeId, name, distanceMeters, categories, latitude, longitude, meta]
+      properties:
+        placeId:
+          type: integer
+          format: int64
+        name:
+          type: string
+        distanceMeters:
+          type: number
+          format: double
+        categories:
+          type: array
+          items:
+            type: string
+        latitude:
+          type: number
+          format: double
+          description: 추천 장소 위도(WGS84)
+        longitude:
+          type: number
+          format: double
+          description: 추천 장소 경도(WGS84)
+        meta:
+          $ref: '#/components/schemas/RouletteMeta'
+    RouletteMeta:
+      type: object
+      required: [candidateCount, replayed]
+      properties:
+        candidateCount:
+          type: integer
+        replayed:
+          type: boolean
+    RouletteRequest:
+      type: object
+      required: [lat, lng]
+      properties:
+        lat:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+        lng:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+        radius:
+          type: number
+          format: double
+          minimum: 1
+          default: 300
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 500
+          default: 200
+        categories:
+          type: array
+          items:
+            type: string
+            minLength: 1
+            maxLength: 30
+          maxItems: 5
+        seed:
+          type: integer
+          format: int64
+          nullable: true
+    ApiResponseVisitSessionStart:
+      type: object
+      required: [success, timestamp, data]
+      properties:
+        success:
+          type: boolean
+        timestamp:
+          type: string
+          format: date-time
+        data:
+          $ref: '#/components/schemas/VisitSessionStartResponse'
+        error:
+          nullable: true
+          type: object
+    VisitSessionStartRequest:
+      type: object
+      required: [userId, placeId]
+      properties:
+        userId:
+          type: string
+          format: uuid
+        placeId:
+          type: integer
+          format: int64
+        clientNote:
+          type: string
+          maxLength: 50
+        clientMode:
+          $ref: '#/components/schemas/ClientMode'
+    VisitSessionStartResponse:
+      type: object
+      required: [sessionId, state, startedAt, expiresAt, replayed]
+      properties:
+        sessionId:
+          type: integer
+          format: int64
+        state:
+          $ref: '#/components/schemas/VisitState'
+        startedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        replayed:
+          type: boolean
+    ApiResponseVisitPosition:
+      type: object
+      required: [success, timestamp, data]
+      properties:
+        success:
+          type: boolean
+        timestamp:
+          type: string
+          format: date-time
+        data:
+          $ref: '#/components/schemas/VisitPositionResponse'
+        error:
+          nullable: true
+          type: object
+    VisitPositionRequest:
+      type: object
+      required: [latitude, longitude, recordedAt]
+      properties:
+        latitude:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+        accuracyMeters:
+          type: number
+          format: double
+          minimum: 0
+          nullable: true
+        mode:
+          $ref: '#/components/schemas/ClientMode'
+        recordedAt:
+          type: string
+          format: date-time
+    VisitPositionResponse:
+      type: object
+      required: [positionId, sessionId, state, recordedAt, dwellSeconds, accuracyPaused]
+      properties:
+        positionId:
+          type: integer
+          format: int64
+        sessionId:
+          type: integer
+          format: int64
+        state:
+          $ref: '#/components/schemas/VisitState'
+        recordedAt:
+          type: string
+          format: date-time
+        dwellSeconds:
+          type: integer
+          format: int64
+        accuracyPaused:
+          type: boolean
+    VisitState:
+      type: string
+      enum: [ACTIVE, ARRIVED, EXPIRED, CANCELLED]
+    ClientMode:
+      type: string
+      enum: [NAVIGATION, IDLE]
+    ApiResponseVisitManualArrival:
+      type: object
+      required: [success, timestamp, data]
+      properties:
+        success:
+          type: boolean
+        timestamp:
+          type: string
+          format: date-time
+        data:
+          $ref: '#/components/schemas/VisitManualArrivalResponse'
+        error:
+          nullable: true
+          type: object
+    VisitManualArrivalRequest:
+      type: object
+      required: [latitude, longitude, requestedBy]
+      properties:
+        latitude:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+        accuracyMeters:
+          type: number
+          format: double
+          minimum: 0
+          nullable: true
+        requestedBy:
+          type: string
+          minLength: 1
+          maxLength: 100
+    VisitManualArrivalResponse:
+      type: object
+      required: [sessionId, state, arrivedAt, requestedBy, replayed]
+      properties:
+        sessionId:
+          type: integer
+          format: int64
+        state:
+          $ref: '#/components/schemas/VisitState'
+        arrivedAt:
+          type: string
+          format: date-time
+        requestedBy:
+          type: string
+        replayed:
+          type: boolean

@@ -13,7 +13,9 @@ spring:
         format_sql: true
     hibernate:
       ddl-auto: none # 환경별로 덮어쓰기
-
+  jackson:
+    time-zone: Asia/Seoul
+    
 server:
   port: 8080
 
@@ -24,6 +26,11 @@ logging:
     org.springframework.web: INFO
     org.hibernate.SQL: WARN
     org.hibernate.type.descriptor.sql.BasicBinder: WARN
+
+ratelimit:
+  search:
+    capacity: 10
+    window-seconds: 10
 
 # Swagger 기본값 (운영에서는 꺼야 함)
 springdoc:

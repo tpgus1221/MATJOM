@@ -1,14 +1,17 @@
 package com.matjom.matjom.common.config;
 
 import java.time.Clock;
+import java.time.ZoneId;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class TimeConfig {
 
+    private static final ZoneId DEFAULT_ZONE = ZoneId.of("Asia/Seoul");
+
     @Bean
     public Clock systemClock() {
-        return Clock.systemUTC(); // 9월 30일 최종: 전역에서 재사용할 UTC 기준 Clock
+        return Clock.system(DEFAULT_ZONE); // 전역에서 재사용할 KST 기준 Clock
     }
 }

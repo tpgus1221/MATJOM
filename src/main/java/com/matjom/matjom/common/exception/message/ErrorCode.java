@@ -33,6 +33,8 @@ public enum ErrorCode {
     INVALID_GEOFENCE(HttpStatus.BAD_REQUEST, "잘못된 지오펜스 요청입니다."),
     ARRIVAL_NOT_CONFIRMED(HttpStatus.BAD_REQUEST, "도착이 확인되지 않았습니다."),
     ARRIVAL_MISDETECTED(HttpStatus.CONFLICT, "잘못된 도착 감지가 발생했습니다."),
+    ARRIVAL_TIME_INVALID(HttpStatus.BAD_REQUEST, "수동 도착은 시작 10~60분 사이에만 가능합니다."),
+    ARRIVAL_DISTANCE_EXCEEDED(HttpStatus.BAD_REQUEST, "수동 도착 가능 반경(30m)을 초과했습니다."),
     ARRIVAL_CANCELLED(HttpStatus.OK, "도착이 취소되었습니다."),
     NETWORK_UNSTABLE(HttpStatus.BAD_GATEWAY, "네트워크가 불안정합니다."),
     SESSION_RECOVERY_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "세션 복구에 실패했습니다."),
@@ -44,6 +46,8 @@ public enum ErrorCode {
     SEARCH_RATE_LIMIT_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "요청 한도를 초과했습니다."),
     SEARCH_RELAX_NOT_CONSENTED(HttpStatus.BAD_REQUEST, "완화 검색 동의가 필요합니다."),
     ROULETTE_NO_CANDIDATE(HttpStatus.NO_CONTENT, "추천할 후보가 없습니다."),
+    IDEMPOTENCY_KEY_REQUIRED(HttpStatus.BAD_REQUEST, "Idempotency-Key 헤더가 필요합니다."),
+    IDEMPOTENCY_KEY_CONFLICT(HttpStatus.CONFLICT, "동일한 Idempotency-Key로 다른 요청이 전달되었습니다."),
 
     // ====== Feed ======
     REVIEW_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "리뷰 작성이 허용되지 않습니다."),
